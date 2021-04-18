@@ -159,7 +159,7 @@ def show_venue(venue_id):
       past_shows.append({
         "artist_id": show.artist_id,
         "artist_name":  show.artist.name,
-        "artist_image_link": artist.image_link,
+        "artist_image_link": show.artist.image_link,
         "start_time": str(show.start_time)
       })
       no_of_past_shows += 1
