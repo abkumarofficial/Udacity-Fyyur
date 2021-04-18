@@ -5,7 +5,16 @@
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for, abort, jsonify
+from flask import (
+  Flask,
+  render_template,
+  request,
+  Response,
+  flash,
+  redirect,
+  url_for, abort,
+  jsonify
+)
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
@@ -16,6 +25,7 @@ from forms import *
 from operator import itemgetter
 from flask_migrate import Migrate
 import re
+from models import db, Venue, Artist, Show, Genre
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -23,92 +33,11 @@ import re
 app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
-db = SQLAlchemy(app)
-
+# db = SQLAlchemy(app)
+db.init_app(app)
 # connect to a local postgresql database
 migrate = Migrate(app, db)
 
-#----------------------------------------------------------------------------#
-# Models.
-#----------------------------------------------------------------------------#
-
-# Creating a genre Class, this will be the child class for both Venue and Artist
-# there will be a many to many relation b/w (genre and artist)  and (genre and venue)
-
-class Genre(db.Model):
-    __tablename__ = 'Genre'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-
-# Genre Model and Artist Model has many to many relationship
-artist_genre_relation = db.Table('artist_genre_relation',
-    db.Column('genre_id', db.Integer, db.ForeignKey('Genre.id'), primary_key=True),
-    db.Column('artist_id', db.Integer, db.ForeignKey('Artist.id'), primary_key=True)
-)
-
-# Genre Model and Venue Model has many to many relationship
-venue_genre_relation = db.Table('venue_genre_relation',
-    db.Column('genre_id', db.Integer, db.ForeignKey('Genre.id'), primary_key=True),
-    db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id'), primary_key=True)
-)
-
-class Venue(db.Model):
-    __tablename__ = 'Venue'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    image_link = db.Column(db.String(500))
-    facebook_link = db.Column(db.String(120))
-    # below statement is to create a m2m relation with Genre
-    genres = db.relationship('Genre', secondary=venue_genre_relation, backref=db.backref('venues'))
-    website = db.Column(db.String(120))
-    seeking_talent = db.Column(db.Boolean, default=False)
-    seeking_description = db.Column(db.String(120))
-    # below line is to create a one to many relation with Show modal
-    shows = db.relationship('Show', backref='venue', lazy=True)    # Can reference show.venue (as well as venue.shows)
-
-    def __repr__(self):
-        return f'<Venue {self.id} {self.name}>'
-
-
-class Artist(db.Model):
-    __tablename__ = 'Artist'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    city = db.Column(db.String(120))
-    state = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
-    # A many to many relation needs to be created with artist and genre, same as Venue and genre
-    genres = db.relationship('Genre', secondary=artist_genre_relation, backref=db.backref('artists'))
-    image_link = db.Column(db.String(900))
-    facebook_link = db.Column(db.String(120))
-    seeking_venue = db.Column(db.Boolean, default=False)
-    website_link = db.Column(db.String(120))
-    seeking_description = db.Column(db.String(120))
-    # just like for Venue, below statement is to create a one to many relatiuon with Show
-    shows = db.relationship('Show', backref='artist', lazy=True)
-    def __repr__(self):
-        return f'<Artist {self.id} {self.name}>'
-
-# Creating show Class for Show page in the UI, all the fields have been created by reviewing the UI
-class Show(db.Model):
-    __tablename__ = 'Show'
-
-    id = db.Column(db.Integer, primary_key=True)
-    start_time = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=False)
-    venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), nullable=False)
-
-    def __repr__(self):
-        return f'<Show {self.id} artistID={self.artist_id} venueID={self.venue_id}>'
-
-# db.create_all()
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -150,7 +79,7 @@ def venues():
   now = datetime.now()
 
   for location in cities_and_states:
-      # For this location, see if there are any venues there, and add if so
+      # For this location, see if there are any venues there
       venues_list = []
       for venue in venues:
           if (venue.city == location[0]) and (venue.state == location[1]):
@@ -168,34 +97,11 @@ def venues():
                   "num_upcoming_shows": num_upcoming
               })
       data = []
-      # adding to the data list , as seen in the commented example below
       data.append({
           "city": location[0],
           "state": location[1],
           "venues": venues_list
       })
-
-  # data=[{
-  #   "city": "San Francisco",
-  #   "state": "CA",
-  #   "venues": [{
-  #     "id": 1,
-  #     "name": "The Musical Hop",
-  #     "num_upcoming_shows": 0,
-  #   }, {
-  #     "id": 3,
-  #     "name": "Park Square Live Music & Coffee",
-  #     "num_upcoming_shows": 1,
-  #   }]
-  # }, {
-  #   "city": "New York",
-  #   "state": "NY",
-  #   "venues": [{
-  #     "id": 2,
-  #     "name": "The Dueling Pianos Bar",
-  #     "num_upcoming_shows": 0,
-  #   }]
-  # }]
   return render_template('pages/venues.html', areas=data)
 
 
@@ -233,7 +139,9 @@ def search_venues():
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
-  venue = Venue.query.get(venue_id)
+
+  # venue = Venue.query.get(venue_id)
+  venue = Venue.query.first_or_404(venue_id)
   genre_list = []
   # genre has to be sent as a list in the Object
   for genre in venue.genres:
@@ -246,11 +154,11 @@ def show_venue(venue_id):
   no_of_upcoming_shows = 0
 
   for show in venue.shows:
-    artist = Artist.query.get(show.artist_id)
+    # artist = Artist.query.get(show.artist_id)
     if show.start_time < current_time:
       past_shows.append({
         "artist_id": show.artist_id,
-        "artist_name":  artist.name,
+        "artist_name":  show.artist.name,
         "artist_image_link": artist.image_link,
         "start_time": str(show.start_time)
       })
@@ -258,8 +166,8 @@ def show_venue(venue_id):
     if show.start_time > current_time:
       upcoming_shows.append({
         "artist_id": show.artist_id,
-        "artist_name":  artist.name,
-        "artist_image_link": artist.image_link,
+        "artist_name":  show.artist.name,
+        "artist_image_link": show.artist.image_link,
         "start_time": str(show.start_time)
       })
       no_of_upcoming_shows += 1
@@ -339,9 +247,10 @@ def create_venue_submission():
               new_venue.genres.append(new_genre)  # Create a new Genre item and append it
         db.session.add(new_venue)
         db.session.commit()
-    except:
-        error_in_insert = True
-        db.session.rollback()
+    except Exception as e:
+      flash(f'Exception "{e}" in create_venue_submission()')
+      error_in_insert = True
+      db.session.rollback()
     finally:
         db.session.close()
 
@@ -436,20 +345,20 @@ def show_artist(artist_id):
 
   # below set of instructions is to fetch the information about the past and upcoming shows 
   for show in artist.shows:
-    found_venue = Venue.query.get(show.venue_id)
+    # found_venue = Venue.query.get(show.venue_id)
     if show.start_time > current_time:
       upcoming_shows.append({
-      "venue_id": found_venue.id,
-      "venue_name": found_venue.name,
-      "venue_image_link": found_venue.image_link,
+      "venue_id": show.venue.id,
+      "venue_name": show.venue.name,
+      "venue_image_link": show.venue.image_link,
       "start_time": str(show.start_time)
       })
       no_of_upcoming_shows += 1
     if show.start_time < current_time:
       past_shows.append({
-      "venue_id": found_venue.id,
-      "venue_name": found_venue.name,
-      "venue_image_link": found_venue.image_link,
+      "venue_id": show.venue.id,
+      "venue_name": show.venue.name,
+      "venue_image_link": show.venue.image_link,
       "start_time": str(show.start_time)
       })
       no_of_past_shows += 1
