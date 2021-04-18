@@ -146,32 +146,28 @@ def show_venue(venue_id):
   # genre has to be sent as a list in the Object
   for genre in venue.genres:
     genre_list.append(genre.name)
-  
-  current_time = datetime.now()
-  past_shows = []
-  no_of_past_shows = 0
+  upcoming_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show.start_time>datetime.now()).all()
   upcoming_shows = []
-  no_of_upcoming_shows = 0
 
-  for show in venue.shows:
-    # artist = Artist.query.get(show.artist_id)
-    if show.start_time < current_time:
-      past_shows.append({
-        "artist_id": show.artist_id,
-        "artist_name":  show.artist.name,
-        "artist_image_link": show.artist.image_link,
-        "start_time": str(show.start_time)
-      })
-      no_of_past_shows += 1
-    if show.start_time > current_time:
-      upcoming_shows.append({
-        "artist_id": show.artist_id,
-        "artist_name":  show.artist.name,
-        "artist_image_link": show.artist.image_link,
-        "start_time": str(show.start_time)
-      })
-      no_of_upcoming_shows += 1
-  
+  past_shows_query = db.session.query(Show).join(Artist).filter(Show.venue_id==venue_id).filter(Show.start_time<datetime.now()).all()
+  past_shows = []
+
+  for show in past_shows_query:
+    past_shows.append({
+      "artist_id": show.artist_id,
+      "artist_name": show.artist.name,
+      "artist_image_link": show.artist.image_link,
+      "start_time": str(show.start_time)
+    })
+
+  for show in upcoming_shows_query:
+    upcoming_shows.append({
+      "artist_id": show.artist_id,
+      "artist_name": show.artist.name,
+      "artist_image_link": show.artist.image_link,
+      "start_time": str(show.start_time)   
+    })
+
   data = {
     "id": venue_id,
     "name": venue.name,
@@ -186,9 +182,9 @@ def show_venue(venue_id):
     "seeking_description": venue.seeking_description,
     "image_link": venue.image_link,
     "past_shows": past_shows,
-    "past_shows_count": no_of_past_shows,
+    "past_shows_count": len(past_shows),
     "upcoming_shows": upcoming_shows,
-    "upcoming_shows_count": no_of_upcoming_shows
+    "upcoming_shows_count": len(upcoming_shows)
   }
   return render_template('pages/show_venue.html', venue=data)
 
@@ -337,32 +333,27 @@ def show_artist(artist_id):
   for genre in artist.genres:
     genre_list.append(genre.name)
 
-  current_time = datetime.now()
+  past_shows_query = db.session.query(Show).join(Venue).filter(Show.artist_id==artist_id).filter(Show.start_time>datetime.now()).all()
   past_shows = []
-  no_of_past_shows = 0
-  upcoming_shows = []
-  no_of_upcoming_shows = 0
 
-  # below set of instructions is to fetch the information about the past and upcoming shows 
-  for show in artist.shows:
-    # found_venue = Venue.query.get(show.venue_id)
-    if show.start_time > current_time:
-      upcoming_shows.append({
-      "venue_id": show.venue.id,
+  for show in past_shows_query:
+    past_shows.append({
+      "venue_id": show.venue_id,
       "venue_name": show.venue.name,
-      "venue_image_link": show.venue.image_link,
-      "start_time": str(show.start_time)
-      })
-      no_of_upcoming_shows += 1
-    if show.start_time < current_time:
-      past_shows.append({
-      "venue_id": show.venue.id,
+      "artist_image_link": show.venue.image_link,
+      "start_time": show.start_time.strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+  upcoming_shows_query = db.session.query(Show).join(Venue).filter(Show.artist_id==artist_id).filter(Show.start_time>datetime.now()).all()
+  upcoming_shows = []
+
+  for show in upcoming_shows_query:
+    upcoming_shows.append({
+      "venue_id": show.venue_id,
       "venue_name": show.venue.name,
-      "venue_image_link": show.venue.image_link,
-      "start_time": str(show.start_time)
-      })
-      no_of_past_shows += 1
-  # puuting everything in data now
+      "artist_image_link": show.venue.image_link,
+      "start_time": show.start_time.strftime('%Y-%m-%d %H:%M:%S')
+    })
   data = {
     "id": artist.id,
     "name": artist.name,
@@ -377,8 +368,8 @@ def show_artist(artist_id):
     "image_link": artist.image_link,
     "past_shows": past_shows,
     "upcoming_shows": upcoming_shows,
-    "past_shows_count": no_of_past_shows,
-    "upcoming_shows_count": no_of_upcoming_shows
+    "past_shows_count": len(past_shows),
+    "upcoming_shows_count": len(upcoming_shows)
   }
   # data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
   return render_template('pages/show_artist.html', artist=data)
